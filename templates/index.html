@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFT Batch Downloader</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+    padding: 20px;
+}
+.container { max-width: 800px; margin: 0 auto; }
+h1 {
+    text-align: center;
+    font-size: 24px;
+    margin-bottom: 24px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.card {
+    background: #14141f;
+    border: 1px solid #2a2a3a;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+.card-title {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+label { display: block; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+input[type="text"], input[type="password"], input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    background: #1a1a2e;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus { border-color: #667eea; }
+.row { display: flex; gap: 12px; margin-bottom: 12px; }
+.row > div { flex: 1; }
+.input-group { display: flex; gap: 8px; margin-bottom: 8px; }
+.input-group input { flex: 1; }
+button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+}
+button:hover { transform: translateY(-1px); }
+button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+.btn-danger { background: #dc3545; color: #fff; }
+.btn-success { background: #28a745; color: #fff; padding: 10px 14px; }
+.btn-remove { background: #dc3545; color: #fff; padding: 10px 14px; font-size: 12px; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.contract-list {
+    max-height: 120px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+.contract-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-family: monospace;
+    font-size: 13px;
+}
+.contract-item button { padding: 2px 8px; font-size: 11px; }
+.button-row { display: flex; gap: 12px; justify-content: center; }
+.progress-area { display: none; }
+.progress-label { font-size: 13px; color: #aaa; margin-bottom: 8px; }
+.progress-bar-bg {
+    width: 100%;
+    height: 24px;
+    background: #1a1a2e;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 12px;
+    transition: width 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 40px;
+}
+#log {
+    height: 300px;
+    overflow-y: auto;
+    background: #0d0d15;
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #8a8a9a;
+}
+#log .log-line { white-space: pre-wrap; word-break: break-all; }
+.status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.status-idle { background: #1a1a2e; color: #888; }
+.status-running { background: #1a3a1a; color: #4caf50; }
+.status-done { background: #1a2a3a; color: #2196f3; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>NFT Batch Downloader</h1>
+
+<!-- API Key -->
+<div class="card">
+    <div class="card-title">API 配置</div>
+    <label>Alchemy API Key</label>
+    <input type="password" id="apiKey" placeholder="输入你的 Alchemy API Key">
+</div>
+
+<!-- 合约地址 -->
+<div class="card">
+    <div class="card-title">合约地址</div>
+    <div class="input-group">
+        <input type="text" id="contractInput" placeholder="0x..." onkeydown="if(event.key==='Enter')addContract()">
+        <button class="btn-success" onclick="addContract()">+ 添加</button>
+    </div>
+    <div class="contract-list" id="contractList"></div>
+</div>
+
+<!-- 下载设置 -->
+<div class="card">
+    <div class="card-title">下载设置</div>
+    <div class="row">
+        <div>
+            <label>缩放比例 (1.0 = 不缩放)</label>
+            <input type="number" id="scale" value="0.5" min="0.1" max="1.0" step="0.1">
+        </div>
+        <div>
+            <label>每个合集下载数量 (0 = 全部)</label>
+            <input type="number" id="limit" value="0" min="0" step="100">
+        </div>
+        <div>
+            <label>输出目录</label>
+            <input type="text" id="outputDir" value="nft_images">
+        </div>
+    </div>
+    <div class="row">
+        <div>
+            <label>并发下载数</label>
+            <input type="number" id="concurrent" value="10" min="1" max="100" step="1">
+        </div>
+        <div>
+            <label>下载超时 (秒)</label>
+            <input type="number" id="timeout" value="120" min="10" max="600" step="10">
+        </div>
+        <div>
+            <label>失败重试次数</label>
+            <input type="number" id="maxRetries" value="3" min="0" max="10" step="1">
+        </div>
+    </div>
+</div>
+
+<!-- 控制按钮 -->
+<div class="card" style="text-align:center">
+    <span class="status-badge status-idle" id="statusBadge">就绪</span>
+    <div class="button-row" style="margin-top:12px">
+        <button class="btn-primary" id="btnStart" onclick="startDownload()">▶ 开始下载</button>
+        <button class="btn-danger" id="btnStop" onclick="stopDownload()" disabled>■ 停止</button>
+    </div>
+</div>
+
+<!-- 进度 -->
+<div class="card progress-area" id="progressArea">
+    <div class="card-title">下载进度</div>
+    <div class="progress-label" id="progressLabel">准备中...</div>
+    <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBar" style="width:0%">0%</div>
+    </div>
+</div>
+
+<!-- 日志 -->
+<div class="card">
+    <div class="card-title">运行日志</div>
+    <div id="log"><div class="log-line" style="color:#667eea">欢迎使用 NFT Batch Downloader，请填写配置后点击开始下载。</div></div>
+</div>
+</div>
+
+<script>
+const contracts = [];
+let eventSource = null;
+
+function addContract() {
+    const input = document.getElementById('contractInput');
+    const addr = input.value.trim();
+    if (!addr || !addr.startsWith('0x')) {
+        alert('请输入有效的合约地址 (以 0x 开头)');
+        return;
+    }
+    if (contracts.includes(addr)) {
+        alert('该地址已添加');
+        return;
+    }
+    contracts.push(addr);
+    input.value = '';
+    renderContracts();
+}
+
+function removeContract(index) {
+    contracts.splice(index, 1);
+    renderContracts();
+}
+
+function renderContracts() {
+    const list = document.getElementById('contractList');
+    if (contracts.length === 0) {
+        list.innerHTML = '<div style="color:#555;font-size:12px;padding:8px">暂无合约地址，请添加</div>';
+        return;
+    }
+    list.innerHTML = contracts.map((c, i) =>
+        `<div class="contract-item">
+            <span>${c.slice(0,6)}...${c.slice(-4)}</span>
+            <span style="color:#555;font-size:11px">${c}</span>
+            <button class="btn-remove btn-sm" onclick="removeContract(${i})">✕</button>
+        </div>`
+    ).join('');
+}
+
+function appendLog(msg, color) {
+    const log = document.getElementById('log');
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    if (color) line.style.color = color;
+    line.textContent = msg;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+}
+
+function setStatus(text, cls) {
+    const badge = document.getElementById('statusBadge');
+    badge.textContent = text;
+    badge.className = 'status-badge ' + cls;
+}
+
+function setUI(running) {
+    document.getElementById('btnStart').disabled = running;
+    document.getElementById('btnStop').disabled = !running;
+    document.getElementById('progressArea').style.display = running ? 'block' : 'block';
+}
+
+async function startDownload() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    if (!apiKey) { alert('请输入 Alchemy API Key'); return; }
+    if (contracts.length === 0) { alert('请至少添加一个合约地址'); return; }
+
+    const body = {
+        api_key: apiKey,
+        contracts: contracts,
+        scale: parseFloat(document.getElementById('scale').value) || 1.0,
+        limit: parseInt(document.getElementById('limit').value) || 0,
+        output_dir: document.getElementById('outputDir').value.trim() || 'nft_images',
+        concurrent: parseInt(document.getElementById('concurrent').value) || 10,
+        timeout: parseInt(document.getElementById('timeout').value) || 120,
+        max_retries: parseInt(document.getElementById('maxRetries').value) || 3,
+    };
+
+    // 清空日志
+    document.getElementById('log').innerHTML = '';
+    appendLog('🚀 开始下载任务...', '#667eea');
+
+    try {
+        const resp = await fetch('/api/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            appendLog('❌ ' + (data.error || '启动失败'), '#dc3545');
+            return;
+        }
+        setUI(true);
+        setStatus('下载中...', 'status-running');
+        connectSSE();
+    } catch (e) {
+        appendLog('❌ 网络错误: ' + e.message, '#dc3545');
+    }
+}
+
+async function stopDownload() {
+    try {
+        await fetch('/api/stop', {method: 'POST'});
+        appendLog('⏹ 正在停止...', '#ffc107');
+    } catch (e) {
+        appendLog('❌ 停止失败: ' + e.message, '#dc3545');
+    }
+}
+
+function connectSSE() {
+    if (eventSource) eventSource.close();
+    eventSource = new EventSource('/api/status');
+
+    eventSource.addEventListener('log', (e) => {
+        const data = JSON.parse(e.data);
+        appendLog(data.message);
+    });
+
+    eventSource.addEventListener('progress', (e) => {
+        const data = JSON.parse(e.data);
+        const pct = Math.round((data.current / data.total) * 100);
+        const bar = document.getElementById('progressBar');
+        bar.style.width = pct + '%';
+        bar.textContent = pct + '%';
+        document.getElementById('progressLabel').textContent =
+            `${data.current} / ${data.total} 张图片`;
+    });
+
+    eventSource.addEventListener('collection', (e) => {
+        const data = JSON.parse(e.data);
+        document.getElementById('progressLabel').textContent =
+            `合集 ${data.index}/${data.total}: ${data.contract.slice(0,10)}...`;
+        // 重置进度条
+        const bar = document.getElementById('progressBar');
+        bar.style.width = '0%';
+        bar.textContent = '0%';
+    });
+
+    eventSource.addEventListener('done', (e) => {
+        const data = JSON.parse(e.data);
+        const msg = data.cancelled
+            ? `⏹ 已取消。成功: ${data.success}, 失败: ${data.fail}`
+            : `🏁 全部完成！成功: ${data.success}, 失败: ${data.fail}`;
+        appendLog(msg, '#4caf50');
+        setUI(false);
+        setStatus('完成', 'status-done');
+        eventSource.close();
+        eventSource = null;
+    });
+
+    eventSource.addEventListener('error_event', (e) => {
+        const data = JSON.parse(e.data);
+        appendLog('❌ 错误: ' + data.message, '#dc3545');
+        setUI(false);
+        setStatus('错误', 'status-idle');
+        eventSource.close();
+        eventSource = null;
+    });
+
+    eventSource.onerror = () => {
+        // SSE 断开时不做特殊处理，可能是任务结束
+    };
+}
+
+// 初始化
+renderContracts();
+</script>
+</html>

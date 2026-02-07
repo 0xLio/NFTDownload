@@ -1,0 +1,39 @@
+name: Build Windows EXE
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller
+          pip install fastapi uvicorn[standard] jinja2 requests aiohttp aiofiles pillow
+
+      - name: Build EXE
+        run: |
+          pyinstaller --onefile --console --name NFT_Downloader --add-data "templates;templates" app.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NFT_Downloader_Windows
+          path: dist/NFT_Downloader.exe
+
+      - name: Upload to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/NFT_Downloader.exe
