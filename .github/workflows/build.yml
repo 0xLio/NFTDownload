@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -22,9 +25,21 @@ jobs:
           pip install pyinstaller
           pip install fastapi uvicorn[standard] jinja2 requests aiohttp aiofiles pillow
 
+      - name: Verify templates exist
+        run: |
+          dir templates
+          echo "Templates directory OK"
+
       - name: Build EXE
         run: |
-          pyinstaller --onefile --console --name NFT_Downloader --add-data "templates;templates" app.py
+          pyinstaller --onefile --console --name NFT_Downloader --add-data "templates;templates" --collect-all uvicorn --hidden-import uvicorn.logging --hidden-import uvicorn.loops --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols --hidden-import uvicorn.protocols.http --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.protocols.websockets --hidden-import uvicorn.protocols.websockets.auto --hidden-import uvicorn.lifespan --hidden-import uvicorn.lifespan.on --hidden-import aiofiles --hidden-import aiofiles.os --hidden-import aiofiles.ospath app.py
+
+      - name: Verify EXE size
+        run: |
+          dir dist\NFT_Downloader.exe
+          $size = (Get-Item dist\NFT_Downloader.exe).Length / 1MB
+          echo "EXE size: $size MB"
+          if ($size -lt 5) { echo "WARNING: EXE seems too small!"; exit 1 }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -37,3 +52,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/NFT_Downloader.exe
+          body: |
+            ## NFT Batch Downloader v${{ github.ref_name }}
+
+            双击运行 `NFT_Downloader.exe`，浏览器会自动打开操作界面。
+
+            ### 使用说明
+            1. 输入 Alchemy API Key
+            2. 添加 NFT 合约地址
+            3. 设置缩放比例和下载参数
+            4. 点击开始下载
